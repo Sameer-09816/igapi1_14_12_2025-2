@@ -122,38 +122,54 @@ async def download_instagram(url: str = Query(..., description="Instagram URL"))
     download_items = soup.find_all('div', class_='download-items')
 
     for item in download_items:
-        # --- FIX: Thumbnail Logic ---
+        # A. Extract Thumbnail (Ignore loader.gif)
         thumbnail_url = None
         thumb_div = item.find('div', class_='download-items__thumb')
         
         if thumb_div:
             img_tag = thumb_div.find('img')
             if img_tag:
-                # Priority 1: Check 'data-src' (Lazy Loading)
+                # Priority 1: 'data-src' (Lazy Loading)
                 if img_tag.get('data-src'):
                     thumbnail_url = img_tag.get('data-src')
-                # Priority 2: Check 'src' but ignore loader.gif
+                # Priority 2: 'src' (standard)
                 elif img_tag.get('src'):
                     src_val = img_tag.get('src')
                     if "loader.gif" not in src_val and "imgs/" not in src_val:
                         thumbnail_url = src_val
 
-        # --- Extract Media URL ---
+        # B. Extract Media URL and Determine Type
         btn_div = item.find('div', class_='download-items__btn')
         media_url = None
+        media_type = 'image' # Default
+
         if btn_div:
             a_tag = btn_div.find('a', href=True)
             if a_tag:
                 media_url = a_tag['href']
+                
+                # Cleanup URL
                 if media_url.startswith(r"\'") and media_url.endswith(r"\'"):
                     media_url = media_url[2:-2]
 
+                # --- FIX: DETECT VIDEO TYPE ---
+                # Check 1: HTML Title Attribute (e.g., title="Download Video")
+                link_title = a_tag.get('title', '').lower()
+                link_text = a_tag.get_text().lower()
+
+                if 'video' in link_title or 'video' in link_text:
+                    media_type = 'video'
+                # Check 2: URL Extension (Fallback)
+                elif '.mp4' in media_url:
+                    media_type = 'video'
+                # Check 3: Check requested URL (Last resort context)
+                elif '/reel/' in url or '/tv/' in url:
+                    # If the user asked for a reel, and we found a link, it's likely a video
+                    # unless it's a carousel. Snapinsta buttons are usually accurate though.
+                    pass
+
         if media_url:
-            media_type = 'video' if '.mp4' in media_url or 'video' in media_url else 'image'
-            
-            # --- FIX: Fallback for Images ---
-            # If it's an image and we still have no valid thumbnail (or it's the loader),
-            # the media_url IS the image, so use that as thumbnail.
+            # Fallback: If it's an image but no thumbnail was found, the media_url IS the thumbnail
             if media_type == 'image':
                 if not thumbnail_url or "loader.gif" in str(thumbnail_url):
                     thumbnail_url = media_url
@@ -164,12 +180,13 @@ async def download_instagram(url: str = Query(..., description="Instagram URL"))
                 type=media_type
             ))
 
-    # Fallback for unexpected layouts
+    # Fallback Parsing (if layout changes completely)
     if not media_list:
         all_links = soup.find_all('a', href=True)
         for link in all_links:
             href = link['href']
             if any(x in href for x in ["fbcdn", "cdninstagram", "snapinsta"]):
+                # Guess type based on URL extension only in fallback mode
                 m_type = 'video' if '.mp4' in href else 'image'
                 media_list.append(MediaItem(
                     media_url=href,
