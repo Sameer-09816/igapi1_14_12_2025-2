@@ -1,25 +1,21 @@
-# Use lightweight Python 3.12 image
+# Use a slim version of Python
 FROM python:3.12-slim
 
-# Set environment variables
+# Prevent Python from writing .pyc files and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install Node.js (Required for PyExecJS to deobfuscate Snapinsta response)
-RUN apt-get update && apt-get install -y nodejs && apt-get clean
-
-# Set working directory
 WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy the rest of the code
 COPY . .
 
-# Expose port 8000 for Coolify
+# Expose the port FastAPI runs on
 EXPOSE 8000
 
-# Command to run the application using Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Run using Gunicorn with Uvicorn workers for production performance
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]
