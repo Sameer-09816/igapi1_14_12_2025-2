@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-gunicorn
 httpx
 beautifulsoup4
-cachetools
+gunicorn
