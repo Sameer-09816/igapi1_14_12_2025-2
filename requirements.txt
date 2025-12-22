@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+gunicorn
 httpx
 beautifulsoup4
-gunicorn
+python-multipart
