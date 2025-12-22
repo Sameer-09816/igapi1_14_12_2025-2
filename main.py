@@ -80,7 +80,7 @@ def extract_username(url: str) -> str:
 
 # --- CORE LOGIC ---
 
-@app.get("/download")
+@app.get("/api/download")
 async def download_api(url: str = Query(..., description="Instagram URL")):
     if "instagram.com" not in url:
         raise HTTPException(status_code=400, detail="Not a valid Instagram URL")
